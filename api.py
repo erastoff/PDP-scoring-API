@@ -56,11 +56,17 @@ class Field:
         self.value = value
 
     def validate(self, value):
-        if not self.nullable and value is None:
-            raise ValueError(f"{self.field_name} must not be None")
-
+        if value is None:
+            if not self.nullable:
+                # raise ValueError(f"{self.field_name} must not be None")
+                return False, f"{self.field_name} must not be None"
+            else:
+                return None, OK
         if self.required and not value:
-            raise ValueError(f"{self.field_name} is required")
+            # raise ValueError(f"{self.field_name} is required")
+            return False, f"{self.field_name} is required"
+
+        return True, OK
 
 
 class CharField(Field):
@@ -69,9 +75,16 @@ class CharField(Field):
         self.field_name = __class__
 
     def validate(self, value):
-        super().validate(value)
-        if not isinstance(value, str) and self.required:
-            raise ValueError(f"{self.field_name} must be a string")
+        parent_result = super().validate(value)
+        if not parent_result[0]:
+            return parent_result[0], parent_result[1]
+        # print(parent_result, type(parent_result))
+        if not parent_result:
+            return parent_result[0], parent_result[1]
+        if not value or not isinstance(value, str):
+            # raise ValueError(f"{self.field_name} must be a string")
+            return False, f"{self.field_name} must be a str"
+        return True, OK
 
 
 class ArgumentsField(Field):
@@ -80,9 +93,13 @@ class ArgumentsField(Field):
         self.field_name = __class__
 
     def validate(self, value):
-        super().validate(value)
-        if not isinstance(value, dict) and self.required:
-            raise ValueError("Field must be a dictionary")
+        parent_result = super().validate(value)
+        if not parent_result[0]:
+            return parent_result[0], parent_result[1]
+        if not value or not isinstance(value, dict):
+            # raise ValueError("Field must be a dictionary")
+            return False, f"{self.field_name} must be a dict"
+        return True, OK
 
 
 class EmailField(CharField):
@@ -91,9 +108,13 @@ class EmailField(CharField):
         self.field_name = __class__
 
     def validate(self, value):
-        super().validate(value)
-        if not re.match(r"[^@]+@[^@]+\.[^@]+", value) and self.required:
-            raise ValueError("Invalid email format")
+        parent_result = super().validate(value)
+        if not parent_result[0]:
+            return parent_result[0], parent_result[1]
+        if not value or not re.match(r"[^@]+@[^@]+\.[^@]+", value):
+            # raise ValueError("Invalid email format")
+            return False, f"{self.field_name} must have appropriate email format"
+        return True, OK
 
 
 class PhoneField(Field):
@@ -102,12 +123,13 @@ class PhoneField(Field):
         self.field_name = __class__
 
     def validate(self, value):
-        super().validate(value)
-        if (
-            not re.match(r"\+\d{1,3}\(\d{3}\)\d{3}-\d{2}-\d{2}", value)
-            and self.required
-        ):
-            raise ValueError("Invalid phone format")
+        parent_result = super().validate(value)
+        if not parent_result[0]:
+            return parent_result[0], parent_result[1]
+        if not value or not re.match(r"^7\d{10}$", str(value)):
+            # raise ValueError("Invalid phone format")
+            return False, f"{self.field_name} must have appropriate phone format"
+        return True, OK
 
 
 class DateField(Field):
@@ -116,12 +138,17 @@ class DateField(Field):
         self.field_name = __class__
 
     def validate(self, value):
-        super().validate(value)
-        if self.required:
+        parent_result = super().validate(value)
+        if not parent_result[0]:
+            return parent_result[0], parent_result[1]
+        if value:
             try:
-                datetime.strptime(value, "%d.%m.%Y")
+                datetime.datetime.strptime(value, "%d.%m.%Y")
+                return True, OK
             except ValueError:
-                raise ValueError("Invalid date format")
+                # raise ValueError("Invalid date format")
+                return False, f"{self.field_name} must have appropriate date format"
+        return True, OK
 
 
 class BirthDayField(DateField):
@@ -130,8 +157,13 @@ class BirthDayField(DateField):
         self.field_name = __class__
 
     def validate(self, value):
-        super().validate(value)
-        # Дополнительные проверки, если необходимо
+        parent_result = super().validate(value)
+        return parent_result[0], parent_result[1]
+        # is_valid, error_message = super().validate(value)
+        # if is_valid:
+        #     return True, OK
+        # else:
+        #     return False, f"{self.field_name} must have appropriate date format"
 
 
 class GenderField(Field):
@@ -140,9 +172,13 @@ class GenderField(Field):
         self.field_name = __class__
 
     def validate(self, value):
-        super().validate(value)
-        if value not in GENDERS.values() and self.required:
-            raise ValueError("Invalid gender value")
+        parent_result = super().validate(value)
+        if not parent_result[0]:
+            return parent_result[0], parent_result[1]
+        if value and value not in GENDERS:
+            # raise ValueError("Invalid gender value")
+            return False, f"{self.field_name} must have value in (0, 1, 2)"
+        return True, OK
 
 
 class ClientIDsField(Field):
@@ -151,31 +187,43 @@ class ClientIDsField(Field):
         self.field_name = __class__
 
     def validate(self, value):
-        super().validate(value)
-        if self.required and (
+        parent_result = super().validate(value)
+        if not parent_result[0]:
+            return parent_result[0], parent_result[1]
+        if not value or (
             not isinstance(value, list)
             or not all(isinstance(client_id, int) for client_id in value)
         ):
-            raise ValueError("Field must be a list of integers")
+            # raise ValueError("Field must be a list of integers")
+            return False, f"{self.field_name} must be a list with integer"
+        return True, OK
 
 
 class RequestValidator:
     def validate(self, request_instance, data):
+        is_fields_valid = {}
         for field_name, field_instance in request_instance.__class__.__dict__.items():
             if isinstance(field_instance, Field):
                 field_value = data.get(field_name)
-                try:
-                    field_instance.validate(field_value)
-                except ValueError as e:
-                    raise ValueError(f"Validation error for field '{field_name}': {e}")
+                is_valid, error = field_instance.validate(field_value)
+                if is_valid == False:
+                    raise ValueError(error)
+                is_fields_valid[field_name] = is_valid, error
+        return is_fields_valid
 
 
 class ClientsInterestsRequest(RequestValidator):
     client_ids = ClientIDsField(required=True)
     date = DateField(required=False, nullable=True)
 
-    def validate(self, **kwargs):
-        super().validate(**kwargs)
+    def validate(self, request_instance, data):
+        super().validate(request_instance, data)
+        # is_field_valid = super().validate(request_instance, data)
+        # print(is_field_valid)
+        # for key, value in is_field_valid.items():
+        #     is_valid, error = value
+        #     if is_valid == False:
+        #         raise ValueError(error)
 
 
 class OnlineScoreRequest(RequestValidator):
@@ -187,14 +235,23 @@ class OnlineScoreRequest(RequestValidator):
     gender = GenderField(required=False, nullable=True)
 
     def validate(self, request_instance, data):
-        super().validate(request_instance, data)
-        # for field_name, field_instance in request_instance.__class__.__dict__.items():
-        #     print("DATA PRINT: ", data.get(field_name))
+        is_field_valid = super().validate(request_instance, data)
+        if (
+            (is_field_valid["phone"][0] and is_field_valid["email"][0])
+            or (is_field_valid["first_name"][0] and is_field_valid["last_name"][0])
+            or (is_field_valid["gender"][0] and is_field_valid["birthday"][0])
+        ):
+            return True
+
+        else:
+            raise ValueError(
+                "Appropriate pair of arguments must be provided for 'online_score' method"
+            )
 
 
 class MethodRequest(RequestValidator):
     account = CharField(required=False, nullable=True)
-    login = CharField(required=True, nullable=True)
+    login = CharField(required=True, nullable=False)
     token = CharField(required=True, nullable=True)
     arguments = ArgumentsField(required=True, nullable=True)
     method = CharField(required=True, nullable=False)
@@ -203,8 +260,16 @@ class MethodRequest(RequestValidator):
     def is_admin(self):
         return self.login == ADMIN_LOGIN
 
-    def validate(self, **kwargs):
-        super().validate(**kwargs)
+    def validate(self, request_instance, data):
+        super().validate(request_instance, data)
+        # is_fields_valid = super().validate(request_instance, data)
+        #
+        # for key, value in is_fields_valid.items():
+        #     is_valid, error = value
+        #     # print(is_valid, error)
+        #     if is_valid == False:
+        #         raise ValueError(error)
+        # return True
 
 
 def check_auth(request):
@@ -220,15 +285,40 @@ def check_auth(request):
 
 
 def method_handler(request, ctx, store):
+    # if request == {}:
     if request["body"]["method"] == "online_score":
+        try:
+            request_instance = OnlineScoreRequest()
+            validator = OnlineScoreRequest()
+            validator.validate(request_instance, request["body"]["arguments"])
+            # print("ONLINE_SCORE_VALID!!! : ", request["body"]["arguments"])
+        except ValueError as e:
+            logging.error(f"Validation error: {e}")
+            code = INVALID_REQUEST
+            response = None
+            return response, code
         score = get_score(store, **request["body"]["arguments"])
         response, code = {"score": score}, HTTPStatus.OK
     elif request["body"]["method"] == "clients_interests":
+        try:
+            request_instance = ClientsInterestsRequest()
+            validator = ClientsInterestsRequest()
+            validator.validate(request_instance, request["body"]["arguments"])
+        except ValueError as e:
+            logging.error(f"Validation error: {e}")
+            code = INVALID_REQUEST
+            response = None
+            return response, code
         response = {}
         for item in request["body"]["arguments"]["client_ids"]:
             response[f"client{item}"] = get_interests(store, item)
-        code = HTTPStatus.OK
+        code = OK
     return response, code
+    # else:
+    #     logging.exception("Empty request was given")
+    #     code = INVALID_REQUEST
+    #     response = None
+    #     return response, code
 
 
 class MainHTTPHandler(BaseHTTPRequestHandler):
@@ -248,35 +338,57 @@ class MainHTTPHandler(BaseHTTPRequestHandler):
             )
             request = json.loads(data_string)
         except Exception as e:
-            print(e)
-            code = HTTPStatus.BAD_REQUEST
+            # print(e)
+            code = BAD_REQUEST
+        # if not request:
+        #     print(request, type(request))
 
         if request:
             path = self.path.strip("/")
             logging.info("%s: %s %s" % (self.path, data_string, context["request_id"]))
             if path in self.router:
                 try:
-                    # Получаем класс валидатора по имени метода
-                    validator_class = RequestValidator
-                    if validator_class:
-                        request_instance = MethodRequest()
-                        validator = validator_class()
-                        # Выполняем валидацию
-                        validator.validate(request_instance, request)
-                    else:
-                        raise ValueError(f"Unknown method '{path}'")
+                    request_instance = MethodRequest()
+                    validator = MethodRequest()
+                    validator.validate(request_instance, request)
+                    # is_mr_valid = validator.validate(request_instance, request)
+                    # # print(is_mr_valid)
+                    # for key, value in is_mr_valid.items():
+                    #     is_valid, error = value
+                    #     # print(is_valid, error)
+                    #     if not is_valid:
+                    #         raise ValueError(error)
                     response, code = self.router[path](
                         {"body": request, "headers": self.headers}, context, self.store
                     )
                 except ValueError as e:
-                    print(e)
                     logging.error(f"Validation error: {e}")
-                    code = HTTPStatus.UNPROCESSABLE_ENTITY
+                    code = INVALID_REQUEST
+                # try:
+                #     # Получаем класс валидатора по имени метода
+                #     validator_class = RequestValidator
+                #     if validator_class:
+                #         request_instance = MethodRequest()
+                #         validator = validator_class()
+                #         # Выполняем валидацию
+                #         validator.validate(request_instance, request)
+                #     else:
+                #         raise ValueError(f"Unknown method '{path}'")
+                #     response, code = self.router[path](
+                #         {"body": request, "headers": self.headers}, context, self.store
+                #     )
+                # except ValueError as e:
+                #     print(e)
+                #     logging.error(f"Validation error: {e}")
+                #     code = INVALID_REQUEST
                 except Exception as e:
                     logging.exception("Unexpected error: %s" % e)
-                    code = HTTPStatus.INTERNAL_SERVER_ERROR
+                    code = INTERNAL_ERROR
             else:
-                code = HTTPStatus.NOT_FOUND
+                code = NOT_FOUND
+        else:
+            logging.exception("Empty request was given")
+            code = INVALID_REQUEST
 
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
