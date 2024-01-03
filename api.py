@@ -43,7 +43,7 @@ GENDERS = {
 
 class Field:
     def __init__(self, value=None, required=True, nullable=False):
-        self.field_name = __class__
+        self.field_name = self.__class__
         self.value = value
         self.required = required
         self.nullable = nullable
@@ -54,14 +54,19 @@ class Field:
     def __set__(self, instance, value):
         self.validate(value)
         self.value = value
+        # print(self.field_name.__str__())
+        # setattr(instance, self.field_name.__str__(), value)
 
+    # def validate(self):
     def validate(self, value):
+        # if self.value is None:
         if value is None:
             if not self.nullable:
                 # raise ValueError(f"{self.field_name} must not be None")
                 return False, f"{self.field_name} must not be None"
             else:
                 return None, OK
+        # if self.required and not self.value:
         if self.required and not value:
             # raise ValueError(f"{self.field_name} is required")
             return False, f"{self.field_name} is required"
@@ -72,15 +77,15 @@ class Field:
 class CharField(Field):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.field_name = __class__
+        self.field_name = self.__class__
 
     def validate(self, value):
         parent_result = super().validate(value)
         if not parent_result[0]:
             return parent_result[0], parent_result[1]
         # print(parent_result, type(parent_result))
-        if not parent_result:
-            return parent_result[0], parent_result[1]
+        # if not parent_result:
+        #     return parent_result[0], parent_result[1]
         if not value or not isinstance(value, str):
             # raise ValueError(f"{self.field_name} must be a string")
             return False, f"{self.field_name} must be a str"
@@ -90,7 +95,7 @@ class CharField(Field):
 class ArgumentsField(Field):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.field_name = __class__
+        self.field_name = self.__class__
 
     def validate(self, value):
         parent_result = super().validate(value)
@@ -105,7 +110,7 @@ class ArgumentsField(Field):
 class EmailField(CharField):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.field_name = __class__
+        self.field_name = self.__class__
 
     def validate(self, value):
         parent_result = super().validate(value)
@@ -120,7 +125,7 @@ class EmailField(CharField):
 class PhoneField(Field):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.field_name = __class__
+        self.field_name = self.__class__
 
     def validate(self, value):
         parent_result = super().validate(value)
@@ -135,7 +140,7 @@ class PhoneField(Field):
 class DateField(Field):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.field_name = __class__
+        self.field_name = self.__class__
 
     def validate(self, value):
         parent_result = super().validate(value)
@@ -154,7 +159,7 @@ class DateField(Field):
 class BirthDayField(DateField):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.field_name = __class__
+        self.field_name = self.__class__
 
     def validate(self, value):
         parent_result = super().validate(value)
@@ -169,7 +174,7 @@ class BirthDayField(DateField):
 class GenderField(Field):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.field_name = __class__
+        self.field_name = self.__class__
 
     def validate(self, value):
         parent_result = super().validate(value)
@@ -184,7 +189,7 @@ class GenderField(Field):
 class ClientIDsField(Field):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.field_name = __class__
+        self.field_name = self.__class__
 
     def validate(self, value):
         parent_result = super().validate(value)
@@ -209,6 +214,11 @@ class RequestValidator:
                 if is_valid == False:
                     raise ValueError(error)
                 is_fields_valid[field_name] = is_valid, error
+
+                ###################
+                # print(field_name, field_value)
+                # setattr(self, field_name, field_value)
+                ###################
         return is_fields_valid
 
 
@@ -256,12 +266,28 @@ class MethodRequest(RequestValidator):
     arguments = ArgumentsField(required=True, nullable=True)
     method = CharField(required=True, nullable=False)
 
+    # print(token)
+
     @property
     def is_admin(self):
+        # print(self.login)
         return self.login == ADMIN_LOGIN
 
+    # def check_auth(self, request):
+    #     return check_auth(request)
+
+    def add_attributes_from_request(self, request):
+        for attr in ["account", "login", "token", "arguments", "method"]:
+            setattr(self, attr, request.get(attr))
+
     def validate(self, request_instance, data):
+        # print(data)
+        # self.add_attributes_from_request(data)
         super().validate(request_instance, data)
+        # self.add_attributes_from_request(data)
+        # print(data)
+        # self.add_attributes_from_request(data)
+
         # is_fields_valid = super().validate(request_instance, data)
         #
         # for key, value in is_fields_valid.items():
@@ -278,6 +304,7 @@ def check_auth(request):
             datetime.datetime.now().strftime("%Y%m%d%H") + ADMIN_SALT
         ).hexdigest()
     else:
+        print(request.account, request.login, SALT)
         digest = hashlib.sha512(request.account + request.login + SALT).hexdigest()
     if digest == request.token:
         return True
@@ -349,6 +376,8 @@ class MainHTTPHandler(BaseHTTPRequestHandler):
             if path in self.router:
                 try:
                     request_instance = MethodRequest()
+                    # request_instance.login = "42"
+                    # print(request_instance.__dict__)
                     validator = MethodRequest()
                     validator.validate(request_instance, request)
                     # is_mr_valid = validator.validate(request_instance, request)
@@ -358,6 +387,23 @@ class MainHTTPHandler(BaseHTTPRequestHandler):
                     #     # print(is_valid, error)
                     #     if not is_valid:
                     #         raise ValueError(error)
+
+                    # request_instance.add_attributes_from_request(request)
+                    print(
+                        # validator.__getattribute__(__account),
+                        validator.login,
+                        validator.method,
+                        request_instance.account,
+                        request_instance.login,
+                        request_instance.method,
+                    )
+                    if request_instance.is_admin:
+                        print(request_instance.is_admin, "IS_ADMIN")
+                    else:
+                        print(request_instance.is_admin, "NOT_IS_ADMIN")
+                    # if not check_auth():
+                    #     raise ValueError("Forbidden")
+
                     response, code = self.router[path](
                         {"body": request, "headers": self.headers}, context, self.store
                     )
