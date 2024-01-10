@@ -56,7 +56,6 @@ class Field:
         instance.value = value
 
     def validate(self):
-        # print("VALUE: ", self.value)
         if self.required:
             if self.value is None:
                 return False, f"{self.field_name} is required"
@@ -65,15 +64,6 @@ class Field:
         elif self.nullable and not self.value:
             return None, OK
         return True, OK
-
-        # if not self.value:
-        #     if not self.nullable:
-        #         return False, f"{self.field_name} must not be nullable"
-        #     else:
-        #         return None, OK
-        # if self.required and self.value == None:
-        #     return False, f"{self.field_name} is required"
-        # return True, OK
 
 
 class CharField(Field):
@@ -198,12 +188,7 @@ class RequestValidator:
             if isinstance(field_instance, Field):
                 field_instance.value = data.get(field_name)
                 request_instance._fields[field_name] = field_instance.value
-                # setattr(request_instance, field_name, field_instance)
                 is_valid, error = field_instance.validate()
-                # if not is_valid:
-                #     raise ValueError(
-                #         f'Field "{field_name}" is not valid! Error {error}'
-                #     )
                 is_fields_valid[field_name] = is_valid, error
         return is_fields_valid
 
@@ -221,7 +206,6 @@ class ClientsInterestsRequest(RequestValidator):
             is_valid, error = value
             if is_valid == False:
                 return False
-                # raise ValueError(error)
         return True
 
 
@@ -238,13 +222,11 @@ class OnlineScoreRequest(RequestValidator):
 
     def validate(self, data):
         is_field_valid = super().validate(self, data)
-        # print(is_field_valid)
         for key, value in is_field_valid.items():
             is_valid, error = value
             if is_valid == False:
                 logging.error(f"Validation error: Invalid Field - {error}")
                 return False
-                # raise ValueError(error)
         if (
             (is_field_valid["phone"][0] and is_field_valid["email"][0])
             or (is_field_valid["first_name"][0] and is_field_valid["last_name"][0])
@@ -254,9 +236,6 @@ class OnlineScoreRequest(RequestValidator):
 
         else:
             return False
-            # raise ValueError(
-            #     "Appropriate pair of arguments must be provided for 'online_score' method"
-            # )
 
 
 class MethodRequest(RequestValidator):
@@ -275,27 +254,11 @@ class MethodRequest(RequestValidator):
 
     def validate(self, data):
         is_fields_valid = super().validate(self, data)
-        # print(is_fields_valid)
         for key, value in is_fields_valid.items():
             is_valid, error = value
             if is_valid == False:
-                # raise ValueError(error)
                 return False
         return True
-
-
-# def check_auth(request):
-#     if request.is_admin:
-#         digest = hashlib.sha512(
-#             datetime.datetime.now().strftime("%Y%m%d%H") + ADMIN_SALT  # ADMIN_SALT
-#         ).hexdigest()
-#     else:
-#         digest = hashlib.sha512(
-#             request._fields["account"] + request._fields["login"] + SALT
-#         ).hexdigest()
-#     if digest == request._fields["token"]:
-#         return True
-#     return False
 
 
 def check_auth(request):
@@ -315,79 +278,55 @@ def check_auth(request):
 
 
 def method_handler(request, ctx, store):
-    # print("HERE!!!!!", request)
     validator = MethodRequest()
     if not validator.validate(request["body"]):
         code = INVALID_REQUEST
         response = "Validation error: MethodRequest"
-        return response, code
+        return response, code, ctx
     if not check_auth(validator):
-        # raise PermissionError("Forbidden")
         code = FORBIDDEN
         response = "Forbidden"
-        return response, code
-
+        return response, code, ctx
     if not request["body"].get("method", False):
-        # raise ValueError("Method is not provided")
         code = INVALID_REQUEST
         response = "Method is not provided"
-        return response, code
-    if request["body"]["method"] == "online_score":
-        # try:
-        #     validator = OnlineScoreRequest()
-        #     validator.validate(request["body"]["arguments"])
-        # except ValueError as e:
-        #     logging.error(f"Validation error: {e}")
-        #     code = INVALID_REQUEST
-        #     response = None
-        #     return response, code
+        return response, code, ctx
 
+    if request["body"]["method"] == "online_score":
+        has = []
         validator = OnlineScoreRequest()
         if validator.validate(request["body"]["arguments"]):
             score = get_score(store, **request["body"]["arguments"])
+            for key in request["body"]["arguments"].keys():
+                if request["body"]["arguments"][key] is not None:
+                    has.append(key)
+            ctx["has"] = has
             response, code = {"score": score}, OK
         else:
-            logging.error(f"Validation error: OnlineScoreRequest arguments error")
+            logging.error("Validation error: OnlineScoreRequest arguments error")
             code = INVALID_REQUEST
-            response = 'OnlineScoreRequest arguments error"'
-            return response, code
+            response = "OnlineScoreRequest arguments error"
+            return response, code, ctx
 
-        # score = get_score(store, **request["body"]["arguments"])
-        # response, code = {"score": score}, OK
     elif request["body"]["method"] == "clients_interests":
-        # try:
-        #     validator = ClientsInterestsRequest()
-        #     validator.validate(request["body"]["arguments"])
-        # except ValueError as e:
-        #     logging.error(f"Validation error: {e}")
-        #     code = INVALID_REQUEST
-        #     response = None
-        #     return response, code
-
         validator = ClientsInterestsRequest()
         if validator.validate(request["body"]["arguments"]):
             response = {}
             for item in request["body"]["arguments"]["client_ids"]:
                 response[f"client{item}"] = get_interests(store, item)
             code = OK
+            ctx["nclients"] = len(request["body"]["arguments"]["client_ids"])
         else:
-            logging.error(f"Validation error: ClientsInterestsRequest arguments error")
+            logging.error("Validation error: ClientsInterestsRequest arguments error")
             code = INVALID_REQUEST
             response = "ClientsInterestsRequest arguments error"
-            return response, code
+            return response, code, ctx
 
-        # response = {}
-        # for item in request["body"]["arguments"]["client_ids"]:
-        #     response[f"client{item}"] = get_interests(store, item)
-        # code = OK
     else:
-        # raise ValueError("Unsupported method was given")
-        logging.error(
-            f"Validation error: Invalid method - Unsupported method was given"
-        )
+        logging.error("Validation error: Invalid method - Unsupported method was given")
         code = INVALID_REQUEST
         response = "Unsupported method was given"
-    return response, code
+    return response, code, ctx
 
 
 class MainHTTPHandler(BaseHTTPRequestHandler):
@@ -410,19 +349,12 @@ class MainHTTPHandler(BaseHTTPRequestHandler):
             logging.error(f"Bad request: {e}")
             code = BAD_REQUEST
 
-        # print("REQUEST: ", request)
-
         if request:
             path = self.path.strip("/")
             logging.info("%s: %s %s" % (self.path, data_string, context["request_id"]))
             if path in self.router:
                 try:
-                    # validator = MethodRequest()
-                    # validator.validate(request)
-                    #
-                    # if not check_auth(validator):
-                    #     raise PermissionError("Forbidden")
-                    response, code = self.router[path](
+                    response, code, context = self.router[path](
                         {"body": request, "headers": self.headers}, context, self.store
                     )
                 except ValueError as e:

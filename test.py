@@ -43,7 +43,7 @@ class TestSuite(unittest.TestCase):
             request["token"] = hashlib.sha512(bytes(msg, "utf-8")).hexdigest()
 
     def test_empty_request(self):
-        _, code = self.get_response({})
+        _, code, ctx = self.get_response({})
         self.assertEqual(api.INVALID_REQUEST, code)
 
     @cases(
@@ -72,8 +72,7 @@ class TestSuite(unittest.TestCase):
         ]
     )
     def test_bad_auth(self, request):
-        _, code = self.get_response(request)
-        # print(code, request)
+        _, code, ctx = self.get_response(request)
         self.assertEqual(api.FORBIDDEN, code)
 
     @cases(
@@ -85,7 +84,7 @@ class TestSuite(unittest.TestCase):
     )
     def test_invalid_method_request(self, request):
         self.set_valid_auth(request)
-        response, code = self.get_response(request)
+        response, code, ctx = self.get_response(request)
         self.assertEqual(api.INVALID_REQUEST, code)
         self.assertTrue(len(response))
 
@@ -136,7 +135,7 @@ class TestSuite(unittest.TestCase):
             "arguments": arguments,
         }
         self.set_valid_auth(request)
-        response, code = self.get_response(request)
+        response, code, ctx = self.get_response(request)
         self.assertEqual(api.INVALID_REQUEST, code, arguments)
         self.assertTrue(len(response))
 
@@ -171,11 +170,11 @@ class TestSuite(unittest.TestCase):
             "arguments": arguments,
         }
         self.set_valid_auth(request)
-        response, code = self.get_response(request)
+        response, code, ctx = self.get_response(request)
         self.assertEqual(api.OK, code, arguments)
         score = response.get("score")
         self.assertTrue(isinstance(score, (int, float)) and score >= 0, arguments)
-        # self.assertEqual(sorted(self.context["has"]), sorted(arguments.keys()))
+        self.assertEqual(sorted(self.context["has"]), sorted(arguments.keys()))
 
     def test_ok_score_admin_request(self):
         arguments = {"phone": "79175002040", "email": "stupnikov@otus.ru"}
@@ -186,7 +185,7 @@ class TestSuite(unittest.TestCase):
             "arguments": arguments,
         }
         self.set_valid_auth(request)
-        response, code = self.get_response(request)
+        response, code, ctx = self.get_response(request)
         self.assertEqual(api.OK, code)
         score = response.get("score")
         self.assertEqual(score, 3)
@@ -209,7 +208,7 @@ class TestSuite(unittest.TestCase):
             "arguments": arguments,
         }
         self.set_valid_auth(request)
-        response, code = self.get_response(request)
+        response, code, ctx = self.get_response(request)
         self.assertEqual(api.INVALID_REQUEST, code, arguments)
         self.assertTrue(len(response))
 
@@ -231,7 +230,7 @@ class TestSuite(unittest.TestCase):
             "arguments": arguments,
         }
         self.set_valid_auth(request)
-        response, code = self.get_response(request)
+        response, code, ctx = self.get_response(request)
         self.assertEqual(api.OK, code, arguments)
         self.assertEqual(len(arguments["client_ids"]), len(response))
         self.assertTrue(
