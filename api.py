@@ -205,6 +205,7 @@ class ClientsInterestsRequest(RequestValidator):
         for key, value in is_fields_valid.items():
             is_valid, error = value
             if is_valid == False:
+                logging.error(f"Invalid Field '{key}'- {error}")
                 return False
         return True
 
@@ -225,7 +226,7 @@ class OnlineScoreRequest(RequestValidator):
         for key, value in is_field_valid.items():
             is_valid, error = value
             if is_valid == False:
-                logging.error(f"Validation error: Invalid Field - {error}")
+                logging.error(f"Invalid Field '{key}'- {error}")
                 return False
         if (
             (is_field_valid["phone"][0] and is_field_valid["email"][0])
@@ -303,7 +304,6 @@ def method_handler(request, ctx, store):
             ctx["has"] = has
             response, code = {"score": score}, OK
         else:
-            logging.error("Validation error: OnlineScoreRequest arguments error")
             code = INVALID_REQUEST
             response = "OnlineScoreRequest arguments error"
             return response, code, ctx
@@ -317,13 +317,12 @@ def method_handler(request, ctx, store):
             code = OK
             ctx["nclients"] = len(request["body"]["arguments"]["client_ids"])
         else:
-            logging.error("Validation error: ClientsInterestsRequest arguments error")
             code = INVALID_REQUEST
             response = "ClientsInterestsRequest arguments error"
             return response, code, ctx
 
     else:
-        logging.error("Validation error: Invalid method - Unsupported method was given")
+        logging.error("Invalid method - Unsupported method was given")
         code = INVALID_REQUEST
         response = "Unsupported method was given"
     return response, code, ctx
@@ -357,19 +356,13 @@ class MainHTTPHandler(BaseHTTPRequestHandler):
                     response, code, context = self.router[path](
                         {"body": request, "headers": self.headers}, context, self.store
                     )
-                except ValueError as e:
-                    logging.error(f"Validation error: {e}")
-                    code = INVALID_REQUEST
-                except PermissionError as e:
-                    logging.error(f"Authentication error: {e}")
-                    code = FORBIDDEN
                 except Exception as e:
                     logging.exception("Unexpected error: %s" % e)
                     code = INTERNAL_ERROR
             else:
                 code = NOT_FOUND
         else:
-            logging.exception("Empty request was given")
+            logging.exception("Exception: Empty request was given")
             code = INVALID_REQUEST
 
         self.send_response(code)
