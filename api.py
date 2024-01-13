@@ -283,15 +283,15 @@ def method_handler(request, ctx, store):
     if not validator.validate(request["body"]):
         code = INVALID_REQUEST
         response = "Validation error: MethodRequest"
-        return response, code, ctx
+        return response, code
     if not check_auth(validator):
         code = FORBIDDEN
         response = "Forbidden"
-        return response, code, ctx
+        return response, code
     if not request["body"].get("method", False):
         code = INVALID_REQUEST
         response = "Method is not provided"
-        return response, code, ctx
+        return response, code
 
     if request["body"]["method"] == "online_score":
         has = []
@@ -306,7 +306,7 @@ def method_handler(request, ctx, store):
         else:
             code = INVALID_REQUEST
             response = "OnlineScoreRequest arguments error"
-            return response, code, ctx
+            return response, code
 
     elif request["body"]["method"] == "clients_interests":
         validator = ClientsInterestsRequest()
@@ -319,13 +319,13 @@ def method_handler(request, ctx, store):
         else:
             code = INVALID_REQUEST
             response = "ClientsInterestsRequest arguments error"
-            return response, code, ctx
+            return response, code
 
     else:
         logging.error("Invalid method - Unsupported method was given")
         code = INVALID_REQUEST
         response = "Unsupported method was given"
-    return response, code, ctx
+    return response, code
 
 
 class MainHTTPHandler(BaseHTTPRequestHandler):
@@ -353,7 +353,7 @@ class MainHTTPHandler(BaseHTTPRequestHandler):
             logging.info("%s: %s %s" % (self.path, data_string, context["request_id"]))
             if path in self.router:
                 try:
-                    response, code, context = self.router[path](
+                    response, code = self.router[path](
                         {"body": request, "headers": self.headers}, context, self.store
                     )
                 except Exception as e:
